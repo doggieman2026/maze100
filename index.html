@@ -275,12 +275,13 @@
       }
     }
     // goal
+    const emojiFont = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Segoe UI Symbol",sans-serif';
     const gfs = cellSize*0.62;
-    ctx.font = gfs+'px serif';
+    ctx.font = gfs+'px '+emojiFont;
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText('🚩', (maze.size-0.5)*cellSize, (maze.size-0.5)*cellSize);
     // player
-    ctx.font = (cellSize*0.66)+'px serif';
+    ctx.font = (cellSize*0.66)+'px '+emojiFont;
     ctx.fillText('🧒', (px+0.5)*cellSize, (py+0.5)*cellSize);
   }
 
