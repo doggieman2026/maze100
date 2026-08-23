@@ -188,8 +188,8 @@
     };
   }
 
-  function sizeForLevel(level){ return Math.min(5 + Math.floor((level-1)/12), 13); }
-  function trapsForLevel(level){ return Math.min(2 + Math.floor((level-1)/10), 9); }
+  function sizeForLevel(level){ return Math.min(5 + Math.floor((level-1)/6), 15); }
+  function trapsForLevel(level){ return Math.min(2 + Math.floor((level-1)/5), 14); }
 
   function generateMaze(level){
     const size = sizeForLevel(level);
