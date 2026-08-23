@@ -63,6 +63,8 @@
   .icon-btn{background:var(--panel); border:none; color:var(--ink); border-radius:10px;
     padding:6px 10px; font-size:1rem; cursor:pointer;}
   #mazeWrap{display:flex; justify-content:center; touch-action:none;}
+  #mazeWrap.shake{animation:bump 0.28s ease;}
+  @keyframes bump{0%{transform:translateX(0);}25%{transform:translateX(-6px);}50%{transform:translateX(5px);}75%{transform:translateX(-3px);}100%{transform:translateX(0);}}
   #maze{border-radius:14px; background:var(--floor); box-shadow:0 0 0 3px var(--floor-light), 0 10px 30px rgba(0,0,0,0.45);}
   .hint{text-align:center; color:var(--ink-dim); font-size:0.78rem;}
 
@@ -82,7 +84,10 @@
     flex-direction:column; text-align:center; padding:24px;}
   .overlay.show{display:flex;}
   .overlay.scare{background:radial-gradient(circle, var(--scare), #7a0f37 75%); animation:flash 0.25s ease-out;}
-  .ghost-emoji{font-size:5.5rem; animation:pop 0.35s cubic-bezier(.34,1.56,.64,1);}
+  .scare-visual{width:170px; max-width:55vw; height:170px; max-height:55vw; object-fit:contain;
+    font-size:5.5rem; display:flex; align-items:center; justify-content:center;
+    animation:pop 0.35s cubic-bezier(.34,1.56,.64,1);}
+  #scareImg{display:none;}
   @keyframes pop{0%{transform:scale(0.2) rotate(-8deg); opacity:0;}60%{transform:scale(1.15) rotate(4deg);}100%{transform:scale(1) rotate(0);opacity:1;}}
   @keyframes flash{0%{opacity:0;}100%{opacity:1;}}
   .scare-text{font-family:'Baloo 2',cursive; font-weight:800; font-size:1.4rem; margin-top:10px; color:#fff;
@@ -136,8 +141,9 @@
 
 <!-- SCARE OVERLAY -->
 <div class="overlay scare" id="scareOverlay">
-  <div class="ghost-emoji" id="scareEmoji">👻</div>
-  <div class="scare-text">わっ！びっくり！さいしょからやりなおし</div>
+  <img id="scareImg" class="scare-visual" src="" alt="">
+  <div class="scare-visual" id="scareFallback" style="display:none;">👻</div>
+  <div class="scare-text" id="scareText">きゃー！</div>
 </div>
 
 <!-- CLEAR OVERLAY -->
@@ -274,28 +280,76 @@
         ctx.stroke();
       }
     }
-    // goal
-    const emojiFont = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Segoe UI Symbol",sans-serif';
-    const gfs = cellSize*0.62;
-    ctx.font = gfs+'px '+emojiFont;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('🚩', (maze.size-0.5)*cellSize, (maze.size-0.5)*cellSize);
-    // player
-    ctx.font = (cellSize*0.66)+'px '+emojiFont;
-    ctx.fillText('🧒', (px+0.5)*cellSize, (py+0.5)*cellSize);
+    // goal (flag drawn with shapes, no emoji dependency)
+    drawGoal((maze.size-0.5)*cellSize, (maze.size-0.5)*cellSize);
+    // player (friendly circle character)
+    drawPlayer((px+0.5)*cellSize, (py+0.5)*cellSize);
+  }
+
+  function drawGoal(cx,cy){
+    const r = cellSize*0.34;
+    ctx.strokeStyle = '#FF9F6B'; ctx.lineWidth = Math.max(2, cellSize*0.06); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-r*0.15, cy+r); ctx.lineTo(cx-r*0.15, cy-r); ctx.stroke();
+    ctx.fillStyle = '#FF9F6B';
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.15, cy-r);
+    ctx.lineTo(cx+r*0.9, cy-r*0.55);
+    ctx.lineTo(cx-r*0.15, cy-r*0.1);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#7A4A2B';
+    ctx.beginPath(); ctx.ellipse(cx-r*0.15, cy+r, r*0.35, r*0.12, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  function drawPlayer(cx,cy){
+    const r = cellSize*0.32;
+    ctx.fillStyle = '#7CE7C7';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#0d3327';
+    ctx.beginPath(); ctx.arc(cx-r*0.35, cy-r*0.15, r*0.14, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+r*0.35, cy-r*0.15, r*0.14, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy+r*0.15, r*0.5, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+    ctx.lineWidth = Math.max(2, cellSize*0.045); ctx.strokeStyle = '#0d3327';
+    ctx.beginPath(); ctx.arc(cx, cy+r*0.1, r*0.55, 0.12*Math.PI, 0.88*Math.PI); ctx.stroke();
+  }
+
+  function bump(){
+    const wrap = document.getElementById('mazeWrap');
+    wrap.classList.remove('shake'); void wrap.offsetWidth; wrap.classList.add('shake');
+  }
+
+  const ghostImages = ['ghosts/ghost1.png','ghosts/ghost2.png','ghosts/ghost3.png','ghosts/ghost4.png'];
+  const ghostEmojiFallback = ['👻','🎃','💀'];
+
+  function showScareVisual(){
+    const img = document.getElementById('scareImg');
+    const fallback = document.getElementById('scareFallback');
+    const pick = ghostImages[Math.floor(Math.random()*ghostImages.length)];
+    img.onerror = ()=>{
+      img.style.display='none';
+      fallback.style.display='flex';
+      fallback.textContent = ghostEmojiFallback[Math.floor(Math.random()*ghostEmojiFallback.length)];
+    };
+    img.onload = ()=>{ img.style.display='block'; fallback.style.display='none'; };
+    img.src = pick;
+  }
+
+  function bump(){
+    const wrap = document.getElementById('mazeWrap');
+    wrap.classList.remove('shake'); void wrap.offsetWidth; wrap.classList.add('shake');
+    triggerScare(false);
   }
 
   function tryMove(dx,dy){
     if(locked) return;
     const c = maze.cells[py][px];
-    if(dx===1 && c.E) return;
-    if(dx===-1 && c.W) return;
-    if(dy===1 && c.S) return;
-    if(dy===-1 && c.N) return;
+    if(dx===1 && c.E){ bump(); return; }
+    if(dx===-1 && c.W){ bump(); return; }
+    if(dy===1 && c.S){ bump(); return; }
+    if(dy===-1 && c.N){ bump(); return; }
     px+=dx; py+=dy;
     const key = px+','+py;
     if(maze.traps.has(key)){
-      triggerScare();
+      triggerScare(true);
       return;
     }
     draw();
@@ -304,20 +358,19 @@
     }
   }
 
-  function triggerScare(){
-    locked = true;
-    draw();
+  function triggerScare(big){
+    showScareVisual();
     playBoo();
     const el = document.getElementById('scareOverlay');
-    const em = document.getElementById('scareEmoji');
-    const ghosts = ['👻','🎃','💀'];
-    em.textContent = ghosts[Math.floor(Math.random()*ghosts.length)];
+    const txt = document.getElementById('scareText');
+    txt.textContent = big ? 'わっ！びっくり！さいしょからやりなおし' : 'きゃー！そっちはダメ！';
     el.classList.add('show');
+    if(big) locked = true;
+    const dur = big ? 850 : 420;
     setTimeout(()=>{
       el.classList.remove('show');
-      px=0; py=0; locked=false;
-      draw();
-    }, 850);
+      if(big){ px=0; py=0; locked=false; draw(); }
+    }, dur);
   }
 
   function playBoo(){
