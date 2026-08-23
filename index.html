@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ランタン迷路 〜100の道〜</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #140B26;
+    --panel: #1E1338;
+    --floor: #2C1B4D;
+    --floor-light: #382458;
+    --wall: #F2C572;
+    --wall-glow: rgba(242,197,114,0.55);
+    --mint: #7CE7C7;
+    --pumpkin: #FF9F6B;
+    --scare: #FF5C8A;
+    --ink: #EDE6FF;
+    --ink-dim: #B7A9DE;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Nunito',sans-serif; overscroll-behavior:none; user-select:none;
+    display:flex; justify-content:center;}
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(242,197,114,0.10), transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(124,231,199,0.08), transparent 45%);
+  }
+  #app{width:100%; max-width:420px; min-height:100vh; padding:16px 14px 28px;
+    position:relative; z-index:1; display:flex; flex-direction:column; gap:12px;}
+  h1{font-family:'Baloo 2',cursive; font-weight:800; font-size:1.5rem; margin:4px 0 0;
+    color:var(--wall); text-align:center; letter-spacing:0.5px;
+    text-shadow:0 0 14px var(--wall-glow);}
+  .sub{text-align:center; color:var(--ink-dim); font-size:0.82rem; margin-top:-6px;}
+  .screen{display:none;}
+  .screen.active{display:flex; flex-direction:column; gap:12px;}
+
+  /* ---- Level select ---- */
+  .pack-row{display:flex; gap:6px; overflow-x:auto; padding:4px 2px;}
+  .pack-btn{flex:0 0 auto; font-family:'Baloo 2',cursive; font-weight:700; font-size:0.8rem;
+    background:var(--panel); color:var(--ink-dim); border:2px solid transparent;
+    border-radius:10px; padding:7px 10px; cursor:pointer;}
+  .pack-btn.active{color:var(--bg); background:var(--wall); border-color:var(--wall);}
+  .level-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px;}
+  .lvl-btn{aspect-ratio:1; border-radius:12px; border:2px solid var(--floor-light);
+    background:var(--panel); color:var(--ink-dim); font-family:'Baloo 2',cursive;
+    font-weight:700; font-size:1rem; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; position:relative;}
+  .lvl-btn.cleared{background:linear-gradient(160deg, var(--mint), #4fcf9f); color:#0d3327; border-color:transparent;}
+  .lvl-btn.current{border-color:var(--wall); box-shadow:0 0 10px var(--wall-glow); color:var(--wall);}
+  .lvl-btn.locked{opacity:0.35; cursor:not-allowed;}
+  .lvl-btn .star{position:absolute; top:-6px; right:-4px; font-size:0.75rem;}
+  .progress-line{text-align:center; color:var(--ink-dim); font-size:0.8rem;}
+
+  /* ---- Game screen ---- */
+  .topbar{display:flex; justify-content:space-between; align-items:center; padding:2px 4px;}
+  .pill{background:var(--panel); border-radius:999px; padding:6px 12px; font-family:'Baloo 2',cursive;
+    font-weight:700; font-size:0.85rem; color:var(--wall);}
+  .icon-btn{background:var(--panel); border:none; color:var(--ink); border-radius:10px;
+    padding:6px 10px; font-size:1rem; cursor:pointer;}
+  #mazeWrap{display:flex; justify-content:center; touch-action:none;}
+  #maze{border-radius:14px; background:var(--floor); box-shadow:0 0 0 3px var(--floor-light), 0 10px 30px rgba(0,0,0,0.45);}
+  .hint{text-align:center; color:var(--ink-dim); font-size:0.78rem;}
+
+  .dpad{display:grid; grid-template-columns:56px 56px 56px; grid-template-rows:56px 56px 56px;
+    gap:6px; justify-content:center; margin-top:4px;}
+  .dbtn{grid-column:2; background:var(--panel); border:2px solid var(--floor-light); color:var(--wall);
+    border-radius:14px; font-size:1.3rem; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; touch-action:manipulation;}
+  .dbtn:active{background:var(--floor-light);}
+  #dUp{grid-row:1;}
+  #dLeft{grid-row:2; grid-column:1;}
+  #dDown{grid-row:2; grid-column:2;}
+  #dRight{grid-row:2; grid-column:3;}
+
+  /* ---- Overlays ---- */
+  .overlay{position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center;
+    flex-direction:column; text-align:center; padding:24px;}
+  .overlay.show{display:flex;}
+  .overlay.scare{background:radial-gradient(circle, var(--scare), #7a0f37 75%); animation:flash 0.25s ease-out;}
+  .ghost-emoji{font-size:5.5rem; animation:pop 0.35s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes pop{0%{transform:scale(0.2) rotate(-8deg); opacity:0;}60%{transform:scale(1.15) rotate(4deg);}100%{transform:scale(1) rotate(0);opacity:1;}}
+  @keyframes flash{0%{opacity:0;}100%{opacity:1;}}
+  .scare-text{font-family:'Baloo 2',cursive; font-weight:800; font-size:1.4rem; margin-top:10px; color:#fff;
+    text-shadow:0 2px 8px rgba(0,0,0,0.4);}
+
+  .overlay.clear{background:rgba(20,11,38,0.92);}
+  .clear-card{background:var(--panel); border:2px solid var(--wall); border-radius:18px; padding:26px 22px;
+    display:flex; flex-direction:column; gap:14px; align-items:center; max-width:300px;}
+  .clear-card .big{font-size:3rem;}
+  .clear-card h2{font-family:'Baloo 2',cursive; margin:0; color:var(--wall); font-size:1.3rem;}
+  .clear-card p{margin:0; color:var(--ink-dim); font-size:0.85rem;}
+  .btn-row{display:flex; gap:10px; margin-top:4px;}
+  .btn{font-family:'Baloo 2',cursive; font-weight:700; border:none; border-radius:12px; padding:11px 16px;
+    cursor:pointer; font-size:0.9rem;}
+  .btn.primary{background:var(--mint); color:#0d3327;}
+  .btn.ghost{background:transparent; color:var(--ink); border:2px solid var(--floor-light);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="titleBlock">
+    <h1>👻 ランタン迷路 〜100の道〜</h1>
+    <div class="sub">まちがった道にはお化けがひそんでいる…！</div>
+  </div>
+
+  <!-- LEVEL SELECT -->
+  <div id="selectScreen" class="screen active">
+    <div class="progress-line" id="progressLine"></div>
+    <div class="pack-row" id="packRow"></div>
+    <div class="level-grid" id="levelGrid"></div>
+  </div>
+
+  <!-- GAME -->
+  <div id="gameScreen" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" id="backBtn">← レベル選択</button>
+      <div class="pill" id="levelPill">Lv.1</div>
+    </div>
+    <div id="mazeWrap"><canvas id="maze"></canvas></div>
+    <div class="hint">スワイプ / 矢印キー / 下のボタンで移動しよう</div>
+    <div class="dpad">
+      <div class="dbtn" id="dUp">▲</div>
+      <div class="dbtn" id="dLeft">◀</div>
+      <div class="dbtn" id="dDown">▼</div>
+      <div class="dbtn" id="dRight">▶</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- SCARE OVERLAY -->
+<div class="overlay scare" id="scareOverlay">
+  <div class="ghost-emoji" id="scareEmoji">👻</div>
+  <div class="scare-text">わっ！びっくり！さいしょからやりなおし</div>
+</div>
+
+<!-- CLEAR OVERLAY -->
+<div class="overlay clear" id="clearOverlay">
+  <div class="clear-card">
+    <div class="big">🎉</div>
+    <h2 id="clearTitle">クリア！</h2>
+    <p id="clearSub">おばけをよけてゴールできたね！</p>
+    <div class="btn-row">
+      <button class="btn ghost" id="toSelectBtn">レベル選択へ</button>
+      <button class="btn primary" id="nextBtn">つぎのレベルへ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TOTAL_LEVELS = 100;
+  const STORAGE_KEY = 'maze100-progress';
+
+  // ---------- persistence ----------
+  let progress = { cleared: [], maxUnlocked: 1 };
+  async function loadProgress(){
+    try{
+      const r = await window.storage.get(STORAGE_KEY, false);
+      if(r && r.value){ progress = JSON.parse(r.value); }
+    }catch(e){ /* no saved progress yet */ }
+    renderSelectScreen();
+  }
+  async function saveProgress(){
+    try{ await window.storage.set(STORAGE_KEY, JSON.stringify(progress), false); }
+    catch(e){ console.warn('save failed', e); }
+  }
+
+  // ---------- seeded RNG ----------
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function sizeForLevel(level){ return Math.min(5 + Math.floor((level-1)/12), 13); }
+  function trapsForLevel(level){ return Math.min(2 + Math.floor((level-1)/10), 9); }
+
+  function generateMaze(level){
+    const size = sizeForLevel(level);
+    const rng = mulberry32(level * 7919 + 13);
+    const cells = [];
+    for(let y=0;y<size;y++){
+      const row=[];
+      for(let x=0;x<size;x++) row.push({N:true,E:true,S:true,W:true,visited:false});
+      cells.push(row);
+    }
+    const dirs = [[0,-1,'N','S'],[1,0,'E','W'],[0,1,'S','N'],[-1,0,'W','E']];
+    const stack=[[0,0]];
+    cells[0][0].visited = true;
+    while(stack.length){
+      const [cx,cy] = stack[stack.length-1];
+      const shuffled = dirs.map(d=>[rng(),d]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
+      let moved=false;
+      for(const [dx,dy,wall,opp] of shuffled){
+        const nx=cx+dx, ny=cy+dy;
+        if(nx>=0&&nx<size&&ny>=0&&ny<size&&!cells[ny][nx].visited){
+          cells[cy][cx][wall]=false;
+          cells[ny][nx][opp]=false;
+          cells[ny][nx].visited=true;
+          stack.push([nx,ny]);
+          moved=true;
+          break;
+        }
+      }
+      if(!moved) stack.pop();
+    }
+    // find dead-ends (exactly one opening) excluding start & goal
+    const deadEnds = [];
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        if(x===0&&y===0) continue;
+        if(x===size-1&&y===size-1) continue;
+        const c = cells[y][x];
+        const openings = (!c.N?1:0)+(!c.E?1:0)+(!c.S?1:0)+(!c.W?1:0);
+        if(openings===1) deadEnds.push([x,y]);
+      }
+    }
+    // shuffle dead-ends with rng, pick traps
+    const shuffledDE = deadEnds.map(d=>[rng(),d]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
+    const trapCount = Math.min(trapsForLevel(level), shuffledDE.length);
+    const traps = new Set(shuffledDE.slice(0,trapCount).map(([x,y])=>x+','+y));
+    return { size, cells, traps };
+  }
+
+  // ---------- game state ----------
+  let maze=null, level=1, px=0, py=0, cellSize=0, locked=false;
+  const canvas = document.getElementById('maze');
+  const ctx = canvas.getContext('2d');
+
+  function startLevel(lv){
+    level = lv;
+    maze = generateMaze(lv);
+    px=0; py=0; locked=false;
+    document.getElementById('levelPill').textContent = 'Lv.' + lv;
+    showScreen('gameScreen');
+    draw();
+  }
+
+  function draw(){
+    const CANVAS_MAX = Math.min(360, window.innerWidth - 40);
+    cellSize = Math.floor(CANVAS_MAX / maze.size);
+    const dim = cellSize * maze.size;
+    canvas.width = dim; canvas.height = dim;
+    ctx.clearRect(0,0,dim,dim);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--floor');
+    ctx.fillRect(0,0,dim,dim);
+
+    // subtle open-cell tint
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    for(let y=0;y<maze.size;y++) for(let x=0;x<maze.size;x++) if((x+y)%2===0) ctx.fillRect(x*cellSize,y*cellSize,cellSize,cellSize);
+
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--wall');
+    ctx.lineWidth = Math.max(3, cellSize*0.09);
+    ctx.lineCap = 'round';
+    for(let y=0;y<maze.size;y++){
+      for(let x=0;x<maze.size;x++){
+        const c = maze.cells[y][x];
+        const x0=x*cellSize, y0=y*cellSize, x1=x0+cellSize, y1=y0+cellSize;
+        ctx.beginPath();
+        if(c.N){ ctx.moveTo(x0,y0); ctx.lineTo(x1,y0); }
+        if(c.W){ ctx.moveTo(x0,y0); ctx.lineTo(x0,y1); }
+        if(c.E){ ctx.moveTo(x1,y0); ctx.lineTo(x1,y1); }
+        if(c.S){ ctx.moveTo(x0,y1); ctx.lineTo(x1,y1); }
+        ctx.stroke();
+      }
+    }
+    // goal
+    const gfs = cellSize*0.62;
+    ctx.font = gfs+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🚩', (maze.size-0.5)*cellSize, (maze.size-0.5)*cellSize);
+    // player
+    ctx.font = (cellSize*0.66)+'px serif';
+    ctx.fillText('🧒', (px+0.5)*cellSize, (py+0.5)*cellSize);
+  }
+
+  function tryMove(dx,dy){
+    if(locked) return;
+    const c = maze.cells[py][px];
+    if(dx===1 && c.E) return;
+    if(dx===-1 && c.W) return;
+    if(dy===1 && c.S) return;
+    if(dy===-1 && c.N) return;
+    px+=dx; py+=dy;
+    const key = px+','+py;
+    if(maze.traps.has(key)){
+      triggerScare();
+      return;
+    }
+    draw();
+    if(px===maze.size-1 && py===maze.size-1){
+      onClear();
+    }
+  }
+
+  function triggerScare(){
+    locked = true;
+    draw();
+    playBoo();
+    const el = document.getElementById('scareOverlay');
+    const em = document.getElementById('scareEmoji');
+    const ghosts = ['👻','🎃','💀'];
+    em.textContent = ghosts[Math.floor(Math.random()*ghosts.length)];
+    el.classList.add('show');
+    setTimeout(()=>{
+      el.classList.remove('show');
+      px=0; py=0; locked=false;
+      draw();
+    }, 850);
+  }
+
+  function playBoo(){
+    try{
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ac = new AC();
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type='sawtooth';
+      o.frequency.setValueAtTime(320, ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(90, ac.currentTime+0.35);
+      g.gain.setValueAtTime(0.18, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.4);
+      o.connect(g); g.connect(ac.destination);
+      o.start(); o.stop(ac.currentTime+0.42);
+    }catch(e){}
+  }
+
+  async function onClear(){
+    locked = true;
+    if(!progress.cleared.includes(level)) progress.cleared.push(level);
+    if(level+1 > progress.maxUnlocked) progress.maxUnlocked = Math.min(level+1, TOTAL_LEVELS);
+    await saveProgress();
+    document.getElementById('clearTitle').textContent = 'Lv.' + level + ' クリア！';
+    document.getElementById('nextBtn').style.display = level < TOTAL_LEVELS ? 'inline-block' : 'none';
+    document.getElementById('clearOverlay').classList.add('show');
+  }
+
+  // ---------- level select rendering ----------
+  function renderSelectScreen(){
+    const packRow = document.getElementById('packRow');
+    const levelGrid = document.getElementById('levelGrid');
+    packRow.innerHTML = '';
+    for(let p=0;p<10;p++){
+      const b = document.createElement('div');
+      b.className = 'pack-btn' + (p===currentPack?' active':'');
+      b.textContent = (p*10+1) + '-' + (p*10+10);
+      b.onclick = ()=>{ currentPack=p; renderSelectScreen(); };
+      packRow.appendChild(b);
+    }
+    levelGrid.innerHTML = '';
+    for(let i=0;i<10;i++){
+      const lv = currentPack*10 + i + 1;
+      const b = document.createElement('div');
+      const cleared = progress.cleared.includes(lv);
+      const lockedLvl = lv > progress.maxUnlocked;
+      b.className = 'lvl-btn' + (cleared?' cleared':'') + (lockedLvl?' locked':'') + (lv===progress.maxUnlocked?' current':'');
+      b.textContent = lv;
+      if(cleared){ const s=document.createElement('div'); s.className='star'; s.textContent='⭐'; b.appendChild(s); }
+      if(!lockedLvl) b.onclick = ()=> startLevel(lv);
+      levelGrid.appendChild(b);
+    }
+    document.getElementById('progressLine').textContent =
+      'クリア済み ' + progress.cleared.length + ' / ' + TOTAL_LEVELS + '　（つぎは Lv.' + Math.min(progress.maxUnlocked, TOTAL_LEVELS) + '）';
+  }
+  let currentPack = 0;
+
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ---------- controls ----------
+  window.addEventListener('keydown', (e)=>{
+    if(!document.getElementById('gameScreen').classList.contains('active')) return;
+    if(e.key==='ArrowUp'){ tryMove(0,-1); e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ tryMove(0,1); e.preventDefault(); }
+    else if(e.key==='ArrowLeft'){ tryMove(-1,0); e.preventDefault(); }
+    else if(e.key==='ArrowRight'){ tryMove(1,0); e.preventDefault(); }
+  });
+  document.getElementById('dUp').onclick = ()=>tryMove(0,-1);
+  document.getElementById('dDown').onclick = ()=>tryMove(0,1);
+  document.getElementById('dLeft').onclick = ()=>tryMove(-1,0);
+  document.getElementById('dRight').onclick = ()=>tryMove(1,0);
+
+  let touchStart=null;
+  canvas.addEventListener('touchstart', (e)=>{ const t=e.changedTouches[0]; touchStart={x:t.clientX,y:t.clientY}; }, {passive:true});
+  canvas.addEventListener('touchend', (e)=>{
+    if(!touchStart) return;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-touchStart.x, dy=t.clientY-touchStart.y;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<18) return;
+    if(Math.abs(dx)>Math.abs(dy)) tryMove(dx>0?1:-1,0);
+    else tryMove(0, dy>0?1:-1);
+    touchStart=null;
+  }, {passive:true});
+
+  document.getElementById('backBtn').onclick = ()=>{ renderSelectScreen(); showScreen('selectScreen'); };
+  document.getElementById('toSelectBtn').onclick = ()=>{
+    document.getElementById('clearOverlay').classList.remove('show');
+    renderSelectScreen(); showScreen('selectScreen');
+  };
+  document.getElementById('nextBtn').onclick = ()=>{
+    document.getElementById('clearOverlay').classList.remove('show');
+    startLevel(level+1);
+  };
+
+  window.addEventListener('resize', ()=>{ if(maze) draw(); });
+
+  loadProgress();
+})();
+</script>
+</body>
+</html>
